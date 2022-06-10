@@ -8,9 +8,9 @@ Shader "Custom/Visualizer"
     {
         Tags { "RenderType"="Opaque" }
         LOD 100
-
         Pass
         {
+            Cull Off
             CGPROGRAM
             #pragma vertex vert
             #pragma fragment frag

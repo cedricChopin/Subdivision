@@ -7,45 +7,68 @@ public class Loop : MonoBehaviour
 {
     public Geometry geometry = new Geometry();
     private Mesh mesh;
-    private float alpha = 3.0f/16.0f;
+    private float _alpha = 3.0f / 16.0f;
+    [SerializeField] private float debugRadius = 0.025f;
 
     // Start is called before the first frame update
     void Start()
     {
         mesh = GetComponent<MeshFilter>().mesh;
-        
-    }
 
+    }
 
     private void NewEdgePoint(Geometry.Edge e)
     {
-        Vector3 vleft = Vector3.zero;
-        Vector3 vright = Vector3.zero;
+        Vector3 vleft;
+        Vector3 vright;
+        Vector3 newPoint;
 
-        if (e.f1.a.pos != e.v1.pos && e.f1.a.pos != e.v2.pos) vleft = e.f1.a.pos;
-        else if (e.f1.b.pos != e.v1.pos && e.f1.b.pos != e.v2.pos) vleft = e.f1.b.pos;
-        else vleft = e.f1.c.pos;
-
-        if (e.f2.a.pos != e.v1.pos && e.f2.a.pos != e.v2.pos) vright = e.f2.a.pos;
-        else if (e.f2.b.pos != e.v1.pos && e.f2.b.pos != e.v2.pos) vright = e.f2.b.pos;
-        else vright = e.f2.c.pos;
-
-        Vector3 newPoint = (3.0f/8.0f) * (e.v1.pos + e.v2.pos) + (1.0f/8.0f) * (vleft + vright);
+        if (e.f1 != null && e.f2 != null)
+        {
+            const float a = 3f / 8f;
+            const float b = 1f / 8f;
+            vleft = GetLeft(e);
+            vright = GetRight(e);
+            newPoint = a * (e.v1.pos + e.v2.pos) + b * (vleft + vright);
+        }
+        else
+        {
+            newPoint = (e.v1.pos + e.v2.pos) / 2;
+        }
 
         e.edgePoint = newPoint;
     }
 
-    private float AlphaValue(float n)
+    private static Vector3 GetRight(Geometry.Edge e)
+    {
+        return GetOtherVertex(e.f2, e);
+    }
+
+    private static Vector3 GetLeft(Geometry.Edge e)
+    {
+        return GetOtherVertex(e.f1, e);
+    }
+
+    private static Vector3 GetOtherVertex(Geometry.Face face, Geometry.Edge e)
+    {
+        Vector3 value;
+        if (face.a.pos != e.v1.pos && face.a.pos != e.v2.pos) value = face.a.pos;
+        else if (face.b.pos != e.v1.pos && face.b.pos != e.v2.pos) value = face.b.pos;
+        else value = face.c.pos;
+        return value;
+    }
+
+    private float AlphaValue(int n)
     {
         float a = 0;
-        if(n == 3)
+
+        if (n == 3)
         {
             a = 3.0f / 16.0f;
         }
-        if(n > 3)
+        if (n > 3)
         {
-            a = (1.0f / n) * (5.0f/8.0f - Mathf.Pow(3.0f/8.0f + (1.0f/4.0f) * Mathf.Cos((2.0f * Mathf.PI) / n), 2.0f));
-            a = 3.0f / (8.0f * n);
+            a = (1.0f / n) * (5.0f / 8.0f - Mathf.Pow(3.0f / 8.0f + (1.0f / 4.0f) * Mathf.Cos((2.0f * Mathf.PI) / n), 2.0f));
         }
 
         return a;
@@ -53,38 +76,73 @@ public class Loop : MonoBehaviour
 
     private void NewVertexPoint(Geometry.Vertex vertex)
     {
-        List<Geometry.Edge> neightboursEdges = 
+        var edges = geometry.edges.Where(edge => edge.v1.pos == vertex.pos || edge.v2.pos == vertex.pos).ToList();
+        var neighbours = edges.Select(edge => GetOtherVertexFromEdge(vertex, edge)).ToList();
+        var n = neighbours.Count;
+        Vector3 newVertex;
+
+        if (n < 3)
+        {
+            var v0 = GetOtherVertexFromEdge(vertex, edges[0]);
+            var v1 = GetOtherVertexFromEdge(vertex, edges[1]);
+            const float a = 3f / 4f;
+            const float b = 1f / 8f;
+            newVertex = a * vertex.pos + b * (v0.pos + v1.pos);
+        }
+        else
+        {
+            var alpha = AlphaValue(n);
+
+            var sumVertex = Vector3.zero;
+
+            foreach (var v in neighbours)
+            {
+                sumVertex += v.pos;
+            }
+
+            newVertex = (1 - n * alpha) * vertex.pos + alpha * sumVertex;
+        }
+        
+        vertex.vertexPoint = newVertex;
+
+        /*
+        var neighboursEdges =
             geometry.edges.Where(edge => edge.v1.pos == vertex.pos || edge.v2.pos == vertex.pos).ToList();
 
-        List<Geometry.Vertex> neightboursVertex = new List<Geometry.Vertex>();
+        var neighboursVertex = new List<Geometry.Vertex>();
 
-        foreach(var edge in neightboursEdges)
+        foreach (var edge in neighboursEdges)
         {
-            neightboursVertex.Add((edge.v1.pos != vertex.pos) ? edge.v1 : edge.v2);
+            neighboursVertex.Add((edge.v1.pos != vertex.pos) ? edge.v1 : edge.v2);
         }
 
-        alpha = AlphaValue(neightboursVertex.Count);
+        _alpha = AlphaValue(neighboursVertex.Count);
 
-        Vector3 sumVertex = Vector3.zero;
+        var sumVertex = Vector3.zero;
 
-        foreach(var v in neightboursVertex)
+        foreach (var v in neighboursVertex)
         {
             sumVertex += v.pos;
         }
 
-        Vector3 newVertex = (1 - neightboursVertex.Count * alpha) * vertex.pos + alpha * sumVertex;
-        vertex.vertexPoint = newVertex;
+        var newVertex = (1 - neighboursVertex.Count * _alpha) * vertex.pos + _alpha * sumVertex;
+        vertex.vertexPoint = newVertex;*/
+    }
+
+    private static Geometry.Vertex GetOtherVertexFromEdge(Geometry.Vertex vertex, Geometry.Edge edge)
+    {
+        return (edge.v1.pos != vertex.pos) ? edge.v1 : edge.v2;
     }
 
     public void RebuildGeometry()
     {
         geometry.setupMesh(mesh);
-        List<Vector3> newVertices = new List<Vector3>();
+        var newVertices = new List<Vector3>();
         foreach (var f in geometry.faces)
         {
-            Geometry.Edge eab = geometry.edges.Where(edge => (edge.v1.pos == f.a.pos && edge.v2.pos == f.b.pos) || (edge.v2.pos == f.a.pos && edge.v1.pos == f.b.pos)).First();
-            Geometry.Edge eac = geometry.edges.Where(edge => (edge.v1.pos == f.a.pos && edge.v2.pos == f.c.pos) || (edge.v2.pos == f.a.pos && edge.v1.pos == f.c.pos)).First();
-            Geometry.Edge ebc = geometry.edges.Where(edge => (edge.v1.pos == f.b.pos && edge.v2.pos == f.c.pos) || (edge.v2.pos == f.b.pos && edge.v1.pos == f.c.pos)).First();
+            var eab = geometry.edges.First(edge => (edge.v1.pos == f.a.pos && edge.v2.pos == f.b.pos) || (edge.v2.pos == f.a.pos && edge.v1.pos == f.b.pos));
+            var eac = geometry.edges.First(edge => (edge.v1.pos == f.a.pos && edge.v2.pos == f.c.pos) || (edge.v2.pos == f.a.pos && edge.v1.pos == f.c.pos));
+            var ebc = geometry.edges.First(edge => (edge.v1.pos == f.b.pos && edge.v2.pos == f.c.pos) || (edge.v2.pos == f.b.pos && edge.v1.pos == f.c.pos));
 
             if (f.a.vertexPoint == Vector3.zero) NewVertexPoint(f.a);
             if (f.b.vertexPoint == Vector3.zero) NewVertexPoint(f.b);
@@ -94,12 +152,12 @@ public class Loop : MonoBehaviour
             if (eac.edgePoint == Vector3.zero) NewEdgePoint(eac);
             if (ebc.edgePoint == Vector3.zero) NewEdgePoint(ebc);
 
-            Geometry.Face f1 = new Geometry.Face(new Geometry.Vertex(f.a.vertexPoint,0), new Geometry.Vertex(eab.edgePoint, 0), new Geometry.Vertex(eac.edgePoint, 0));
-            Geometry.Face f2 = new Geometry.Face(new Geometry.Vertex(f.b.vertexPoint,0), new Geometry.Vertex(eab.edgePoint, 0), new Geometry.Vertex(ebc.edgePoint, 0));
-            Geometry.Face f3 = new Geometry.Face(new Geometry.Vertex(f.c.vertexPoint,0), new Geometry.Vertex(eac.edgePoint, 0), new Geometry.Vertex(ebc.edgePoint, 0));
-            Geometry.Face f4 = new Geometry.Face(new Geometry.Vertex(eab.edgePoint,0), new Geometry.Vertex(eac.edgePoint, 0), new Geometry.Vertex(ebc.edgePoint, 0));
+            var f1 = new Geometry.Face(new Geometry.Vertex(f.a.vertexPoint, 0), new Geometry.Vertex(eab.edgePoint, 0), new Geometry.Vertex(eac.edgePoint, 0));
+            var f2 = new Geometry.Face(new Geometry.Vertex(f.b.vertexPoint, 0), new Geometry.Vertex(eab.edgePoint, 0), new Geometry.Vertex(ebc.edgePoint, 0));
+            var f3 = new Geometry.Face(new Geometry.Vertex(f.c.vertexPoint, 0), new Geometry.Vertex(eac.edgePoint, 0), new Geometry.Vertex(ebc.edgePoint, 0));
+            var f4 = new Geometry.Face(new Geometry.Vertex(eab.edgePoint, 0), new Geometry.Vertex(eac.edgePoint, 0), new Geometry.Vertex(ebc.edgePoint, 0));
 
-            List<Geometry.Face> newFaces = new List<Geometry.Face>
+            var newFaces = new List<Geometry.Face>
             {
                 f1,
                 f2,
@@ -115,8 +173,8 @@ public class Loop : MonoBehaviour
             }
 
         }
-        int[] t = new int[newVertices.Count];
-        for (int i = 0; i < newVertices.Count; i++)
+        var t = new int[newVertices.Count];
+        for (var i = 0; i < newVertices.Count; i++)
         {
             t[i] = i;
         }
@@ -126,7 +184,7 @@ public class Loop : MonoBehaviour
 
     }
 
-    void UpdateMeshVertices(Vector3[] vert, int[] t)
+    private void UpdateMeshVertices(Vector3[] vert, int[] t)
     {
         mesh.SetVertices(vert);
         mesh.triangles = t;
@@ -140,16 +198,16 @@ public class Loop : MonoBehaviour
 
     private void OnDrawGizmos()
     {
-        
+
         Gizmos.color = Color.red;
         foreach (Geometry.Edge edge in geometry.edges)
         {
-            Gizmos.DrawSphere(edge.edgePoint, 0.05f);
+            Gizmos.DrawSphere(edge.edgePoint, debugRadius);
         }
         Gizmos.color = Color.green;
         foreach (Geometry.Vertex vert in geometry.vertices)
         {
-            Gizmos.DrawSphere(vert.vertexPoint, 0.05f);
+            Gizmos.DrawSphere(vert.vertexPoint, debugRadius);
         }
 
     }
