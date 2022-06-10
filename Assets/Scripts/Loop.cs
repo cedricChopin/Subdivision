@@ -76,57 +76,35 @@ public class Loop : MonoBehaviour
 
     private void NewVertexPoint(Geometry.Vertex vertex)
     {
-        var edges = geometry.edges.Where(edge => edge.v1.pos == vertex.pos || edge.v2.pos == vertex.pos).ToList();
-        var neighbours = edges.Select(edge => GetOtherVertexFromEdge(vertex, edge)).ToList();
-        var n = neighbours.Count;
-        Vector3 newVertex;
-
-        if (n < 3)
-        {
-            var v0 = GetOtherVertexFromEdge(vertex, edges[0]);
-            var v1 = GetOtherVertexFromEdge(vertex, edges[1]);
-            const float a = 3f / 4f;
-            const float b = 1f / 8f;
-            newVertex = a * vertex.pos + b * (v0.pos + v1.pos);
-        }
-        else
-        {
-            var alpha = AlphaValue(n);
-
-            var sumVertex = Vector3.zero;
-
-            foreach (var v in neighbours)
-            {
-                sumVertex += v.pos;
-            }
-
-            newVertex = (1 - n * alpha) * vertex.pos + alpha * sumVertex;
-        }
-        
-        vertex.vertexPoint = newVertex;
-
-        /*
-        var neighboursEdges =
+        float alpha;
+        List<Geometry.Edge> neightboursEdges =
             geometry.edges.Where(edge => edge.v1.pos == vertex.pos || edge.v2.pos == vertex.pos).ToList();
 
-        var neighboursVertex = new List<Geometry.Vertex>();
+        List<Geometry.Vertex> neightboursVertex = new List<Geometry.Vertex>();
 
-        foreach (var edge in neighboursEdges)
+        foreach (var edge in neightboursEdges)
         {
-            neighboursVertex.Add((edge.v1.pos != vertex.pos) ? edge.v1 : edge.v2);
+            neightboursVertex.Add((edge.v1.pos != vertex.pos) ? edge.v1 : edge.v2);
         }
 
-        _alpha = AlphaValue(neighboursVertex.Count);
+        alpha = AlphaValue(neightboursVertex.Count);
 
-        var sumVertex = Vector3.zero;
+        Vector3 sumVertex = Vector3.zero;
 
-        foreach (var v in neighboursVertex)
+        foreach (var v in neightboursVertex)
         {
             sumVertex += v.pos;
         }
+        Vector3 newVertex = (1 - neightboursVertex.Count * alpha) * vertex.pos + alpha * sumVertex;
+        var bounds = neightboursEdges.Where(edge => edge.f2 == null).ToList();
+        if (bounds.Count() == 2)
+        {
+            var bords1 = bounds[0].v1.pos == vertex.pos ? bounds[0].v2 : bounds[0].v1;
+            var bords2 = bounds[0].v2.pos == vertex.pos ? bounds[0].v1 : bounds[0].v2;
+            newVertex = 3.0f / 4.0f * (vertex.pos) + (1.0f / 8.0f) * bords1.pos + (1.0f / 8.0f) * bords2.pos;
+        }
 
-        var newVertex = (1 - neighboursVertex.Count * _alpha) * vertex.pos + _alpha * sumVertex;
-        vertex.vertexPoint = newVertex;*/
+        vertex.vertexPoint = newVertex;
     }
 
     private static Geometry.Vertex GetOtherVertexFromEdge(Geometry.Vertex vertex, Geometry.Edge edge)
